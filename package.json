@@ -1,0 +1,12 @@
+{
+  "name": "istu-api-proxy",
+  "version": "1.0.0",
+  "description": "Proxy API for ISTU project using Gemini",
+  "main": "api/generate.js",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.1.0"
+  }
+}

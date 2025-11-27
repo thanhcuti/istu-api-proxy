@@ -1,34 +1,37 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// BẮT BUỘC: Đảm bảo Vercel chạy ở Edge Runtime để hỗ trợ new Response
+// CẤU HÌNH QUAN TRỌNG: BẮT BUỘC Vercel chạy ở chế độ Edge Runtime
 export const config = {
   runtime: 'edge',
 };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
-// Định nghĩa CORS Headers một lần
+// Định nghĩa CORS Headers
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*', // Cho phép mọi domain truy cập
-    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Cho phép các phương thức này
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization', // Cho phép các header này
+    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Cho phép các phương thức
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization', // Cho phép các headers
+    'Content-Type': 'application/json',
 };
 
+// Hàm xử lý chính
 export default async function handler(request) {
-    // 1. Xử lý Preflight Request (OPTIONS)
+    // === Xử lý Preflight Request (OPTIONS) ===
     if (request.method === 'OPTIONS') {
         // Trả về response 204 (No Content) với đầy đủ CORS headers
+        // Đây là cách chuẩn để hoàn thành handshake OPTIONS
         return new Response(null, {
             status: 204, 
             headers: CORS_HEADERS,
         });
     }
 
-    // 2. Xử lý POST Request
+    // === Xử lý POST Request ===
     if (request.method !== 'POST') {
         return new Response('Method Not Allowed', { 
             status: 405, 
-            headers: CORS_HEADERS // Vẫn phải thêm CORS headers vào lỗi 405
+            headers: CORS_HEADERS // Vẫn phải thêm CORS headers ngay cả khi lỗi
         });
     }
 
@@ -38,7 +41,7 @@ export default async function handler(request) {
         if (!GEMINI_API_KEY) {
             return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { 
                 status: 500,
-                headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+                headers: CORS_HEADERS,
             });
         }
 
@@ -69,14 +72,14 @@ export default async function handler(request) {
         // Trả về kết quả thành công với CORS headers
         return new Response(JSON.stringify(cards), {
             status: 200,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            headers: CORS_HEADERS,
         });
 
     } catch (e) {
         console.error("API Proxy Error:", e);
         return new Response(JSON.stringify({ error: e.message }), { 
             status: 500,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            headers: CORS_HEADERS,
         });
     }
 }

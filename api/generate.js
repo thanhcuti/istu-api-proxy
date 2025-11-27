@@ -1,20 +1,20 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// API key from Environment Variations (Vercel Environment Variables)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
-// amenity function creating headers CORS 
+// Thiết lập CORS Headers đầy đủ và áp dụng cho mọi phản hồi
 const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*', // allow all domains access
-    'Access-Control-Allow-Methods': 'POST, OPTIONS', // allow POST and OPTIONS protocols
-    'Access-Control-Allow-Headers': 'Content-Type', // allow send header Content-Type 
+    'Access-Control-Allow-Origin': '*', 
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    // Cần header này để cho phép client gửi header Content-Type
+    'Access-Control-Allow-Headers': 'Content-Type', 
 };
 
 export default async function handler(request) {
-    // 1. Processing OPTIONS (Preflight Request)
+    // 1. XỬ LÝ REQUEST OPTIONS (PREFLIGHT)
     if (request.method === 'OPTIONS') {
         return new Response(null, {
-            status: 204, // 204 No Content (valid for a successful OPTION)
+            status: 204, // 204 No Content
             headers: CORS_HEADERS,
         });
     }
@@ -27,16 +27,16 @@ export default async function handler(request) {
         const { context, isFile, lang } = await request.json();
         
         if (!GEMINI_API_KEY) {
-            // Trường hợp lỗi API Key bị thiếu trên Server
             return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { 
                 status: 500,
                 headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
             });
         }
-
+        
+        // ... (phần còn lại của logic gọi Gemini API giữ nguyên)
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
-
+        // ... (Logic Prompt) ...
         const targetLang = lang === 'en' ? "English" : "Vietnamese";
         let prompt = "";
         
@@ -55,11 +55,10 @@ export default async function handler(request) {
         }
         
         const result = await model.generateContent(prompt);
-        // Clean up the response from Gemini model
         const text = result.response.text();
         const cards = JSON.parse(text.replace(/```json|```/g, "").trim());
-        
-        // Success (Status 200)
+
+        // 2. Thêm CORS Headers vào phản hồi thành công (Status 200)
         return new Response(JSON.stringify(cards), {
             status: 200,
             headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
@@ -67,7 +66,7 @@ export default async function handler(request) {
 
     } catch (e) {
         console.error("API Proxy Error:", e);
-        // Error in processing (status 500)
+        // 3. Thêm CORS Headers vào phản hồi lỗi (Status 500)
         return new Response(JSON.stringify({ error: e.message }), { 
             status: 500,
             headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },

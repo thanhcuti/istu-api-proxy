@@ -1,46 +1,38 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-<<<<<<< HEAD
-// CẤU HÌNH QUAN TRỌNG: Bắt buộc Vercel chạy ở chế độ Edge để hỗ trợ 'new Response'
+// CẤU HÌNH QUAN TRỌNG: BẮT BUỘC Vercel chạy ở chế độ Edge Runtime
 export const config = {
   runtime: 'edge',
 };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
+// Định nghĩa CORS Headers
 const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*', 
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-=======
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
-
-// Thiết lập CORS Headers đầy đủ và áp dụng cho mọi phản hồi
-const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*', 
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    // Cần header này để cho phép client gửi header Content-Type
->>>>>>> 22ed7cff20655280abc6a19908bb7c7e3a957a5c
-    'Access-Control-Allow-Headers': 'Content-Type', 
+    'Access-Control-Allow-Origin': '*', // Cho phép mọi domain truy cập
+    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Cho phép các phương thức
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization', // Cho phép các headers
+    'Content-Type': 'application/json',
 };
 
+// Hàm xử lý chính
 export default async function handler(request) {
-<<<<<<< HEAD
-    // Xử lý Preflight Request (OPTIONS)
+    // === Xử lý Preflight Request (OPTIONS) ===
     if (request.method === 'OPTIONS') {
+        // Trả về response 204 (No Content) với đầy đủ CORS headers
+        // Đây là cách chuẩn để hoàn thành handshake OPTIONS
         return new Response(null, {
-            status: 204,
-=======
-    // 1. XỬ LÝ REQUEST OPTIONS (PREFLIGHT)
-    if (request.method === 'OPTIONS') {
-        return new Response(null, {
-            status: 204, // 204 No Content
->>>>>>> 22ed7cff20655280abc6a19908bb7c7e3a957a5c
+            status: 204, 
             headers: CORS_HEADERS,
         });
     }
 
+    // === Xử lý POST Request ===
     if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405, headers: CORS_HEADERS });
+        return new Response('Method Not Allowed', { 
+            status: 405, 
+            headers: CORS_HEADERS // Vẫn phải thêm CORS headers ngay cả khi lỗi
+        });
     }
 
     try {
@@ -49,14 +41,13 @@ export default async function handler(request) {
         if (!GEMINI_API_KEY) {
             return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { 
                 status: 500,
-                headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+                headers: CORS_HEADERS,
             });
         }
-        
-        // ... (phần còn lại của logic gọi Gemini API giữ nguyên)
+
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
-        // ... (Logic Prompt) ...
+
         const targetLang = lang === 'en' ? "English" : "Vietnamese";
         let prompt = "";
         
@@ -77,22 +68,18 @@ export default async function handler(request) {
         const result = await model.generateContent(prompt);
         const text = result.response.text();
         const cards = JSON.parse(text.replace(/```json|```/g, "").trim());
-
-        // 2. Thêm CORS Headers vào phản hồi thành công (Status 200)
+        
+        // Trả về kết quả thành công với CORS headers
         return new Response(JSON.stringify(cards), {
             status: 200,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            headers: CORS_HEADERS,
         });
 
     } catch (e) {
         console.error("API Proxy Error:", e);
-<<<<<<< HEAD
-=======
-        // 3. Thêm CORS Headers vào phản hồi lỗi (Status 500)
->>>>>>> 22ed7cff20655280abc6a19908bb7c7e3a957a5c
         return new Response(JSON.stringify({ error: e.message }), { 
             status: 500,
-            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            headers: CORS_HEADERS,
         });
     }
 }

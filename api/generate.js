@@ -6,6 +6,7 @@ export const config = {
 };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
+console.log("Vercel is loading API Key starting with:", GEMINI_API_KEY ? GEMINI_API_KEY.substring(0, 4) + '...' : 'Key Not Found');
 
 // Định nghĩa CORS Headers
 const CORS_HEADERS = {

@@ -1,32 +1,31 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// CẤU HÌNH QUAN TRỌNG: BUỘC Vercel chạy ở chế độ Edge Runtime
+// Vercel Edge Runtime configuration
 export const config = {
   runtime: 'edge',
 };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
-// Định nghĩa CORS Headers
+// Define CORS headers
 const CORS_HEADERS = {
-    // 🔥 QUAN TRỌNG: Cho phép mọi domain truy cập
+    // IMPORTANT: Allow all domains for public API access
     'Access-Control-Allow-Origin': '*', 
-    // 🔥 QUAN TRỌNG: Cho phép các phương thức POST và OPTIONS
+    // Allow POST and OPTIONS methods
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    // 🔥 QUAN TRỌNG: Cho phép các headers cần thiết
+    // Allow necessary headers
     'Access-Control-Allow-Headers': 'Content-Type, Authorization', 
     'Content-Type': 'application/json',
 };
 
-// Hàm xử lý chính
+// Main handler function
 export default async function handler(request) {
     
     // =========================================================
-    // 🔥 XỬ LÝ PREFLIGHT REQUEST (OPTIONS) - KHÔNG CẦN KEY
+    // CORS Preflight Handler (OPTIONS) - No key required
     // =========================================================
     if (request.method === 'OPTIONS') {
-        // Trả về response 204 (No Content) với đầy đủ CORS headers
-        // Đây là cách chuẩn để hoàn thành handshake OPTIONS thành công
+        // Return 204 No Content with CORS headers for successful handshake
         return new Response(null, {
             status: 204, 
             headers: CORS_HEADERS,
@@ -34,7 +33,7 @@ export default async function handler(request) {
     }
     
     // =========================================================
-    // XỬ LÝ POST REQUEST (MỚI BẮT ĐẦU CẦN KEY)
+    // POST Request Handler (Requires API Key check)
     // =========================================================
     if (request.method !== 'POST') {
         return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { 
@@ -46,7 +45,7 @@ export default async function handler(request) {
     try {
         const { context, isFile, lang } = await request.json();
         
-        // Kiểm tra API Key bị thiếu - CHỈ KIỂM TRA TẠI ĐÂY (SAU OPTIONS)
+        // Check for missing API Key (checked after OPTIONS to avoid 401 on preflight)
         if (!GEMINI_API_KEY) {
             console.error("Server API Key is missing from Environment Variables!");
             return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { 
@@ -55,7 +54,6 @@ export default async function handler(request) {
             });
         }
         
-        // ... (phần còn lại của logic gọi Gemini API)
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
         
@@ -72,10 +70,11 @@ export default async function handler(request) {
         const result = await model.generateContent(prompt);
         const text = result.response.text();
         
+        // Use regex to robustly extract the JSON array from model's output
         const jsonMatch = text.match(/\\[[\\s\\S]*?\\]/s); 
         
         if (!jsonMatch || jsonMatch.length === 0) {
-            throw new Error(`AI output format error: The model did not return a valid JSON array. Received text start: ${text.substring(0, 50)}...`);
+            throw new Error(`AI output format error: Model did not return a valid JSON array. Received text start: ${text.substring(0, 50)}...`);
         }
         
         const jsonString = jsonMatch[0];
@@ -87,16 +86,27 @@ export default async function handler(request) {
         });
 
     } catch (e) {
+        // Log API error details
         console.error("API Proxy Error:", e); 
         
-        const errorMessage = e.message.includes('AI output format error') 
-                             ? e.message
-                             : e.message.includes('API key not valid') 
-                               ? 'Invalid/Expired API Key (Check Vercel Environment Variables)' 
-                               : 'Internal Server Error during AI processing.';
+        const errorMessage = e.message || 'Internal Server Error during AI processing.';
+        let status = 500;
+        let responseError = `Server Error: ${errorMessage}`;
         
-        return new Response(JSON.stringify({ error: `Server Error: ${errorMessage}` }), { 
-            status: 500, 
+        // Check for Quota Exceeded or Rate Limit errors (Professional handling)
+        if (errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate limit') || errorMessage.toLowerCase().includes('429')) {
+             status = 429;
+             responseError = 'Quota Limit Exceeded. Please try again later.';
+        }
+        
+        // Check for API Key validity errors
+        if (errorMessage.includes('API key not valid')) {
+             responseError = 'Invalid/Expired API Key (Check Vercel Environment Variables)';
+        }
+
+        // Return appropriate status code and error message
+        return new Response(JSON.stringify({ error: responseError }), { 
+            status: status, 
             headers: CORS_HEADERS,
         });
     }

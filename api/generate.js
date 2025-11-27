@@ -1,18 +1,39 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Lấy API Key từ biến môi trường (Environment Variable)
+// CẤU HÌNH QUAN TRỌNG: Bắt buộc Vercel chạy ở chế độ Edge để hỗ trợ 'new Response'
+export const config = {
+  runtime: 'edge',
+};
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
+const CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*', 
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type', 
+};
+
 export default async function handler(request) {
+    // Xử lý Preflight Request (OPTIONS)
+    if (request.method === 'OPTIONS') {
+        return new Response(null, {
+            status: 204,
+            headers: CORS_HEADERS,
+        });
+    }
+
     if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405 });
+        return new Response('Method Not Allowed', { status: 405, headers: CORS_HEADERS });
     }
 
     try {
         const { context, isFile, lang } = await request.json();
         
         if (!GEMINI_API_KEY) {
-            return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { status: 500 });
+            return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { 
+                status: 500,
+                headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+            });
         }
 
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -41,15 +62,14 @@ export default async function handler(request) {
         
         return new Response(JSON.stringify(cards), {
             status: 200,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*', 
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            },
+            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
         });
 
     } catch (e) {
         console.error("API Proxy Error:", e);
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: e.message }), { 
+            status: 500,
+            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        });
     }
 }

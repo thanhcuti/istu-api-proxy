@@ -9,26 +9,25 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Định nghĩa CORS Headers
 const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*', // Cho phép mọi domain truy cập
-    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Cho phép các phương thức
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization', // Cho phép các headers
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json',
 };
 
 // Hàm xử lý chính
 export default async function handler(request) {
-    // === Xử lý Preflight Request (OPTIONS) ===
+    // Xử lý Preflight Request (OPTIONS)
     if (request.method === 'OPTIONS') {
-        // Trả về response 204 (No Content) với đầy đủ CORS headers
         return new Response(null, {
             status: 204, 
             headers: CORS_HEADERS,
         });
     }
 
-    // === Xử lý POST Request ===
+    // Xử lý Method Not Allowed (405)
     if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { 
+        return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { 
             status: 405, 
             headers: CORS_HEADERS
         });
@@ -38,7 +37,7 @@ export default async function handler(request) {
         const { context, isFile, lang } = await request.json();
         
         if (!GEMINI_API_KEY) {
-            return new Response(JSON.stringify({ error: 'Server API Key is missing' }), { 
+            return new Response(JSON.stringify({ error: 'Server API Key is missing. Check your Vercel Environment Variables.' }), { 
                 status: 500,
                 headers: CORS_HEADERS,
             });
@@ -50,6 +49,7 @@ export default async function handler(request) {
         const targetLang = lang === 'en' ? "English" : "Vietnamese";
         let prompt = "";
         
+        // ... (Prompt generation logic giữ nguyên)
         if (isFile) {
             const safeContext = context.substring(0, 25000); 
             prompt = `Analyze this text and extract 5-10 key concepts for flashcards.
@@ -67,32 +67,31 @@ export default async function handler(request) {
         const result = await model.generateContent(prompt);
         const text = result.response.text();
         
-        // **BƯỚC SỬA LỖI QUAN TRỌNG:** Tăng cường khả năng trích xuất JSON
-        // Dùng regex để tìm khối Array JSON đầu tiên ([...]) bao gồm cả các ký tự xuống dòng (s flag)
+        // SỬA LỖI: Tăng cường khả năng trích xuất JSON từ khối trả về của AI
+        // Regex /\[[\s\S]*?\]/s: tìm khối Array JSON đầu tiên
         const jsonMatch = text.match(/\[[\s\S]*?\]/s); 
         
         if (!jsonMatch || jsonMatch.length === 0) {
-            console.error("AI output format error: The model did not return a valid JSON array. Received text: ", text.substring(0, 500));
-            // Gửi lỗi rõ ràng hơn nếu mô hình không trả về JSON
-            return new Response(JSON.stringify({ error: "AI output format error: The model did not return a valid JSON array." }), { 
-                status: 500, 
-                headers: CORS_HEADERS,
-            });
+            // NẾU AI KHÔNG TRẢ VỀ JSON: Ném lỗi để chuyển xuống catch block
+            throw new Error(`AI output format error: The model did not return a valid JSON array. Received text start: ${text.substring(0, 50)}...`);
         }
         
         const jsonString = jsonMatch[0];
-        // Parse chuỗi JSON đã được trích xuất
         const cards = JSON.parse(jsonString);
         
-        // Trả về kết quả thành công với CORS headers
+        // Trả về kết quả thành công
         return new Response(JSON.stringify(cards), {
             status: 200,
             headers: CORS_HEADERS,
         });
 
     } catch (e) {
-        console.error("API Proxy Error:", e);
-        return new Response(JSON.stringify({ error: e.message }), { 
+        // XỬ LÝ LỖI CUỐI CÙNG: Đảm bảo phản hồi luôn là JSON 500
+        const errorMessage = e.message.includes('API output format error') 
+                             ? e.message
+                             : `Server Error: ${e.message}`;
+
+        return new Response(JSON.stringify({ error: errorMessage }), { 
             status: 500,
             headers: CORS_HEADERS,
         });

@@ -20,7 +20,6 @@ export default async function handler(request) {
     // === Xử lý Preflight Request (OPTIONS) ===
     if (request.method === 'OPTIONS') {
         // Trả về response 204 (No Content) với đầy đủ CORS headers
-        // Đây là cách chuẩn để hoàn thành handshake OPTIONS
         return new Response(null, {
             status: 204, 
             headers: CORS_HEADERS,
@@ -31,7 +30,7 @@ export default async function handler(request) {
     if (request.method !== 'POST') {
         return new Response('Method Not Allowed', { 
             status: 405, 
-            headers: CORS_HEADERS // Vẫn phải thêm CORS headers ngay cả khi lỗi
+            headers: CORS_HEADERS
         });
     }
 
@@ -67,7 +66,23 @@ export default async function handler(request) {
         
         const result = await model.generateContent(prompt);
         const text = result.response.text();
-        const cards = JSON.parse(text.replace(/```json|```/g, "").trim());
+        
+        // **BƯỚC SỬA LỖI QUAN TRỌNG:** Tăng cường khả năng trích xuất JSON
+        // Dùng regex để tìm khối Array JSON đầu tiên ([...]) bao gồm cả các ký tự xuống dòng (s flag)
+        const jsonMatch = text.match(/\[[\s\S]*?\]/s); 
+        
+        if (!jsonMatch || jsonMatch.length === 0) {
+            console.error("AI output format error: The model did not return a valid JSON array. Received text: ", text.substring(0, 500));
+            // Gửi lỗi rõ ràng hơn nếu mô hình không trả về JSON
+            return new Response(JSON.stringify({ error: "AI output format error: The model did not return a valid JSON array." }), { 
+                status: 500, 
+                headers: CORS_HEADERS,
+            });
+        }
+        
+        const jsonString = jsonMatch[0];
+        // Parse chuỗi JSON đã được trích xuất
+        const cards = JSON.parse(jsonString);
         
         // Trả về kết quả thành công với CORS headers
         return new Response(JSON.stringify(cards), {
